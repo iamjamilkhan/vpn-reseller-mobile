@@ -64,6 +64,8 @@ export default function AuthScreen({ navigation }) {
       // If success, store the key
       await SecureStore.setItemAsync('vpn_code_key', codeKey);
 
+      console.log('API returned configs:', JSON.stringify(data.configs));
+
       // Normalize and store the returned configs
       let normalizedConfigs = [];
       if (data.configs && data.configs.length > 0) {
@@ -96,6 +98,10 @@ export default function AuthScreen({ navigation }) {
         }).filter(Boolean);
         
         await SecureStore.setItemAsync('vpn_configs', JSON.stringify(normalizedConfigs));
+        console.log('Saved normalized configs to SecureStore:', normalizedConfigs.length);
+      } else {
+        console.warn('No configs were returned from the API.');
+        await SecureStore.setItemAsync('vpn_configs', JSON.stringify([]));
       }
 
       navigation.replace('Home');

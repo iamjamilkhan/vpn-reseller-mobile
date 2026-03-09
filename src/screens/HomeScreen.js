@@ -10,7 +10,7 @@ const { width } = Dimensions.get('window');
 export default function HomeScreen({ navigation }) {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [selectedServer, setSelectedServer] = useState({ name: 'EU-West (Frankfurt)', location: 'Germany', ip: '192.168.1.1', load: '45%' });
+  const [selectedServer, setSelectedServer] = useState({ name: 'Loading Servers...', location: '...', ip: '' });
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [codeKey, setCodeKey] = useState('');
   const [serversList, setServersList] = useState([]);
@@ -179,7 +179,7 @@ export default function HomeScreen({ navigation }) {
           <TouchableOpacity 
             style={styles.locationSelector} 
             onPress={() => !isConnected && setShowLocationModal(true)}
-            disabled={isConnected || isConnecting}
+            disabled={isConnected || isConnecting || serversList.length === 0}
           >
             <View style={styles.locationLeft}>
               <View style={[styles.locationIconWrapper, isConnected && {backgroundColor: 'rgba(16, 185, 129, 0.15)'}]}>
@@ -187,7 +187,7 @@ export default function HomeScreen({ navigation }) {
               </View>
               <View>
                 <Text style={styles.locationLabel}>Current Server</Text>
-                <Text style={styles.locationName}>{selectedServer.name}</Text>
+                <Text style={styles.locationName}>{selectedServer?.name || 'No Servers Found'}</Text>
               </View>
             </View>
             <ChevronDown color={isConnected ? "rgba(255,255,255,0.2)" : "#fff"} size={20} />
@@ -248,37 +248,43 @@ export default function HomeScreen({ navigation }) {
             </View>
 
             <ScrollView style={styles.serverList} showsVerticalScrollIndicator={false}>
-              {serversList.map(server => (
-                <TouchableOpacity 
-                  key={server.id} 
-                  style={[styles.serverItem, selectedServer.name === server.name && styles.serverItemActive]}
-                  onPress={() => {
-                    setSelectedServer(server);
-                    setShowLocationModal(false);
-                  }}
-                >
-                  <View style={styles.serverItemLeft}>
-                    <View style={[styles.serverIcon, selectedServer.name === server.name && styles.serverIconActive]}>
-                       <MapPin color={selectedServer.name === server.name ? '#10b981' : '#a1a1aa'} size={20} />
+              {serversList.length === 0 ? (
+                <View style={{ padding: 24, alignItems: 'center' }}>
+                  <Text style={{ color: '#a1a1aa', textAlign: 'center' }}>No servers available. Please ensure your access key is active.</Text>
+                </View>
+              ) : (
+                serversList.map(server => (
+                  <TouchableOpacity 
+                    key={server.id} 
+                    style={[styles.serverItem, selectedServer?.name === server.name && styles.serverItemActive]}
+                    onPress={() => {
+                      setSelectedServer(server);
+                      setShowLocationModal(false);
+                    }}
+                  >
+                    <View style={styles.serverItemLeft}>
+                      <View style={[styles.serverIcon, selectedServer?.name === server.name && styles.serverIconActive]}>
+                         <MapPin color={selectedServer?.name === server.name ? '#10b981' : '#a1a1aa'} size={20} />
+                      </View>
+                      <View>
+                        <Text style={[styles.serverNameText, selectedServer?.name === server.name && {color: '#fff'}]}>
+                          {server.name} {server.isCustom && '(Custom)'}
+                        </Text>
+                        <Text style={styles.serverLocationText}>{server.location || 'Global'}</Text>
+                      </View>
                     </View>
-                    <View>
-                      <Text style={[styles.serverNameText, selectedServer.name === server.name && {color: '#fff'}]}>
-                        {server.name} {server.isCustom && '(Custom)'}
-                      </Text>
-                      <Text style={styles.serverLocationText}>{server.location}</Text>
+                    
+                    <View style={styles.serverItemRight}>
+                      <View style={styles.loadPill}>
+                         <Text style={styles.loadText}>{server.load || 'Low'}</Text>
+                      </View>
+                      <View style={[styles.radioCircle, selectedServer?.name === server.name && styles.radioCircleActive]}>
+                         {selectedServer?.name === server.name && <View style={styles.radioDot} />}
+                      </View>
                     </View>
-                  </View>
-                  
-                  <View style={styles.serverItemRight}>
-                    <View style={styles.loadPill}>
-                       <Text style={styles.loadText}>{server.load}</Text>
-                    </View>
-                    <View style={[styles.radioCircle, selectedServer.name === server.name && styles.radioCircleActive]}>
-                       {selectedServer.name === server.name && <View style={styles.radioDot} />}
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                  </TouchableOpacity>
+                ))
+              )}
             </ScrollView>
             
             <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowLocationModal(false)}>
