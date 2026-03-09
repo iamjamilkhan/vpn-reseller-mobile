@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "vpn-reseller-mobile",
-    "slug": "vpn-reseller-mobile",
+    "name": "NexusVPN",
+    "slug": "nexusvpn",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -20,10 +20,26 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "package": "com.nexusvpn.vpnresellermobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "./plugins/withNetworkSecurityConfig",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow NexusVPN to access your camera to scan QR Code configurations."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b5081db0-7262-4f7d-8de9-6a1626181839"
+      }
     }
   }
 }

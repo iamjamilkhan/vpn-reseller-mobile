@@ -1,0 +1,317 @@
+diff --git a/node_modules/react-native-wireguard-vpn/android/src/main/java/com/wireguardvpn/WireGuardVpnModule.kt b/node_modules/react-native-wireguard-vpn/android/src/main/java/com/wireguardvpn/WireGuardVpnModule.kt
+index d7dc9de..580df72 100644
+--- a/node_modules/react-native-wireguard-vpn/android/src/main/java/com/wireguardvpn/WireGuardVpnModule.kt
++++ b/node_modules/react-native-wireguard-vpn/android/src/main/java/com/wireguardvpn/WireGuardVpnModule.kt
+@@ -1,5 +1,8 @@
+ package com.wireguardvpn
+ 
++import android.app.Activity
++import android.content.Intent
++import android.net.VpnService
+ import com.facebook.react.bridge.*
+ import com.wireguard.android.backend.GoBackend
+ import com.wireguard.config.Config
+@@ -8,14 +11,21 @@ import com.wireguard.config.Peer
+ import com.wireguard.android.backend.Tunnel
+ import java.net.InetAddress
+ import com.wireguard.config.InetNetwork
+-import com.wireguard.config.ParseException
+ import com.wireguard.crypto.Key
+ 
+-class WireGuardVpnModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
++class WireGuardVpnModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext), ActivityEventListener {
+     private var backend: GoBackend? = null
+     private var tunnel: Tunnel? = null
+     private var config: Config? = null
+     
++    // State to hold promise while asking for VPN permission
++    private var pendingPromise: Promise? = null
++    private var pendingConfigMap: ReadableMap? = null
++
++    init {
++        reactContext.addActivityEventListener(this)
++    }
++
+     override fun getName() = "WireGuardVpnModule"
+ 
+     @ReactMethod
+@@ -29,178 +39,141 @@ class WireGuardVpnModule(reactContext: ReactApplicationContext) : ReactContextBa
+     }
+ 
+     @ReactMethod
+-    fun connect(config: ReadableMap, promise: Promise) {
+-        try {
+-            println("Starting VPN connection process...")
+-            println("Received config: $config")
++    fun connect(configMap: ReadableMap, promise: Promise) {
++        val intent = VpnService.prepare(reactApplicationContext)
++        if (intent != null) {
++            // Need permission
++            pendingPromise = promise
++            pendingConfigMap = configMap
++            val activity = reactApplicationContext.currentActivity
++            activity?.startActivityForResult(intent, 2468)
++            return
++        }
++        // Already have permission
++        executeConnect(configMap, promise)
++    }
++
++    override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
++        if (requestCode == 2468) {
++            if (resultCode == Activity.RESULT_OK) {
++                val promise = pendingPromise
++                val configMap = pendingConfigMap
++                pendingPromise = null
++                pendingConfigMap = null
++                if (promise != null && configMap != null) {
++                    executeConnect(configMap, promise)
++                }
++            } else {
++                pendingPromise?.reject("PERMISSION_DENIED", "VPN permission denied by user")
++                pendingPromise = null
++                pendingConfigMap = null
++            }
++        }
++    }
+ 
++    override fun onNewIntent(intent: Intent) {}
++
++    private fun executeConnect(configMap: ReadableMap, promise: Promise) {
++        try {
+             if (backend == null) {
+-                println("Backend is null, initializing...")
+                 backend = GoBackend(reactApplicationContext)
+             }
+             
+             val interfaceBuilder = Interface.Builder()
+             
+             // Parse private key
+-            val privateKey = config.getString("privateKey") ?: throw Exception("Private key is required")
+-            try {
+-                println("Parsing private key: $privateKey")
+-                interfaceBuilder.parsePrivateKey(privateKey)
+-                println("Private key parsed successfully")
+-            } catch (e: ParseException) {
+-                println("Failed to parse private key: ${e.message}")
+-                throw Exception("Invalid private key format: ${e.message}, Key: $privateKey")
+-            }
+-            
+-            // Parse allowed IPs
+-            val allowedIPs = config.getArray("allowedIPs")?.toArrayList()
+-                ?: throw Exception("allowedIPs array is required")
++            val privateKey = configMap.getString("privateKey") ?: throw Exception("Private key is required")
++            interfaceBuilder.parsePrivateKey(privateKey)
+             
+-            try {
+-                println("Parsing allowed IPs: $allowedIPs")
+-                allowedIPs.forEach { ip ->
++            // Allow `addresses` to explicitly set the interface address
++            val addresses = configMap.getArray("addresses")?.toArrayList()
++            if (addresses != null) {
++                addresses.forEach { ip ->
+                     (ip as? String)?.let { ipString ->
+                         interfaceBuilder.addAddress(InetNetwork.parse(ipString))
+-                    } ?: throw Exception("Invalid allowedIP format")
++                    } ?: throw Exception("Invalid address format")
++                }
++            } else {
++                // Fallback to legacy format but prevent crashing on 0.0.0.0/0
++                val allowedIPs = configMap.getArray("allowedIPs")?.toArrayList()
++                allowedIPs?.forEach { ip ->
++                    (ip as? String)?.let { ipString ->
++                        if (ipString != "0.0.0.0/0" && ipString != "::/0") {
++                            interfaceBuilder.addAddress(InetNetwork.parse(ipString))
++                        }
++                    }
+                 }
+-                println("Allowed IPs parsed successfully")
+-            } catch (e: ParseException) {
+-                println("Failed to parse allowed IPs: ${e.message}")
+-                throw Exception("Invalid allowedIP format: ${e.message}, IPs: $allowedIPs")
+             }
+             
+             // Parse DNS servers
+-            if (config.hasKey("dns")) {
+-                val dnsServers = config.getArray("dns")?.toArrayList()
+-                try {
+-                    println("Parsing DNS servers: $dnsServers")
+-                    dnsServers?.forEach { dns ->
+-                        (dns as? String)?.let { dnsString ->
+-                            interfaceBuilder.addDnsServer(InetAddress.getByName(dnsString))
+-                        }
++            if (configMap.hasKey("dns")) {
++                val dnsServers = configMap.getArray("dns")?.toArrayList()
++                dnsServers?.forEach { dns ->
++                    (dns as? String)?.let { dnsString ->
++                        interfaceBuilder.addDnsServer(InetAddress.getByName(dnsString))
+                     }
+-                    println("DNS servers parsed successfully")
+-                } catch (e: Exception) {
+-                    println("Failed to parse DNS servers: ${e.message}")
+-                    throw Exception("Invalid DNS server format: ${e.message}, DNS: $dnsServers")
+                 }
+             }
+ 
+             // Set MTU if provided
+-            if (config.hasKey("mtu")) {
+-                val mtu = config.getInt("mtu")
+-                if (mtu < 1280 || mtu > 65535) {
+-                    throw Exception("MTU must be between 1280 and 65535, got: $mtu")
++            if (configMap.hasKey("mtu")) {
++                val mtu = configMap.getInt("mtu")
++                if (mtu >= 1280) {
++                   interfaceBuilder.setMtu(mtu)
+                 }
+-                interfaceBuilder.setMtu(mtu)
+             }
+ 
+             val peerBuilder = Peer.Builder()
+             
+             // Parse public key
+-            val publicKey = config.getString("publicKey") ?: throw Exception("Public key is required")
+-            try {
+-                println("Parsing public key: $publicKey")
+-                peerBuilder.parsePublicKey(publicKey)
+-                println("Public key parsed successfully")
+-            } catch (e: ParseException) {
+-                println("Failed to parse public key: ${e.message}")
+-                throw Exception("Invalid public key format: ${e.message}, Key: $publicKey")
+-            }
++            val publicKey = configMap.getString("publicKey") ?: throw Exception("Public key is required")
++            peerBuilder.parsePublicKey(publicKey)
+             
+             // Parse preshared key if provided
+-            if (config.hasKey("presharedKey")) {
+-                val presharedKey = config.getString("presharedKey")
+-                try {
+-                    println("Parsing preshared key: $presharedKey")
+-                    presharedKey?.let { keyString ->
+-                        val key = Key.fromBase64(keyString)
+-                        peerBuilder.setPreSharedKey(key)
+-                    }
+-                    println("Preshared key parsed successfully")
+-                } catch (e: Exception) {
+-                    println("Failed to parse preshared key: ${e.message}")
+-                    throw Exception("Invalid preshared key format: ${e.message}, Key: $presharedKey")
++            if (configMap.hasKey("presharedKey")) {
++                val presharedKey = configMap.getString("presharedKey")
++                presharedKey?.let { keyString ->
++                    peerBuilder.setPreSharedKey(Key.fromBase64(keyString))
+                 }
+             }
+             
+             // Parse endpoint
+-            val serverAddress = config.getString("serverAddress") ?: throw Exception("Server address is required")
+-            val serverPort = config.getInt("serverPort")
+-            if (serverPort < 1 || serverPort > 65535) {
+-                throw Exception("Port must be between 1 and 65535, got: $serverPort")
+-            }
++            val serverAddress = configMap.getString("serverAddress") ?: throw Exception("Server address is required")
++            val serverPort = configMap.getInt("serverPort")
+             val endpoint = "$serverAddress:$serverPort"
+-            try {
+-                println("Parsing endpoint: $endpoint")
+-                peerBuilder.parseEndpoint(endpoint)
+-                println("Endpoint parsed successfully")
+-            } catch (e: ParseException) {
+-                println("Failed to parse endpoint: ${e.message}")
+-                throw Exception("Invalid endpoint format: ${e.message}, Endpoint: $endpoint")
+-            }
++            peerBuilder.parseEndpoint(endpoint)
+ 
+-            // Add allowed IPs to peer
+-            try {
+-                println("Adding allowed IPs to peer: $allowedIPs")
++            // allowedIPs strictly for Peer
++            val allowedIPs = configMap.getArray("allowedIPs")?.toArrayList()
++            if (allowedIPs != null) {
+                 allowedIPs.forEach { ip ->
+                     (ip as? String)?.let { ipString ->
+                         peerBuilder.addAllowedIp(InetNetwork.parse(ipString))
+                     }
+                 }
+-                println("Allowed IPs added to peer successfully")
+-            } catch (e: ParseException) {
+-                println("Failed to add allowed IPs to peer: ${e.message}")
+-                throw Exception("Invalid peer allowedIP format: ${e.message}, IPs: $allowedIPs")
+             }
+ 
+-            println("Building WireGuard config...")
+             val configBuilder = Config.Builder()
+             configBuilder.setInterface(interfaceBuilder.build())
+             configBuilder.addPeer(peerBuilder.build())
+ 
+             this.config = configBuilder.build()
+-            println("WireGuard config built successfully")
+ 
+             this.tunnel = object : Tunnel {
+                 override fun getName(): String = "WireGuardTunnel"
+-                override fun onStateChange(newState: Tunnel.State) {
+-                    println("WireGuard tunnel state changed to: $newState")
+-                }
++                override fun onStateChange(newState: Tunnel.State) {}
+             }
+ 
+-            try {
+-                println("Checking backend and tunnel state...")
+-                println("Backend initialized: $backend")
+-                println("Tunnel initialized: $tunnel")
+-                println("Config ready: $config")
++            if (backend == null) throw Exception("Backend is null")
++            if (tunnel == null) throw Exception("Tunnel is null")
++            if (this.config == null) throw Exception("Config is null")
++            
++            backend?.setState(tunnel!!, Tunnel.State.UP, this.config!!)
++            promise.resolve(null)
+             
+-                println("Attempting to set tunnel state to UP...")
+-                if (backend == null) {
+-                    throw Exception("Backend is null")
+-                }
+-                if (tunnel == null) {
+-                    throw Exception("Tunnel is null")
+-                }
+-                if (this.config == null) {
+-                    throw Exception("Config is null")
+-                }
+-                backend?.setState(tunnel!!, Tunnel.State.UP, this.config!!)
+-                println("Successfully set tunnel state to UP")
+-                promise.resolve(null)
+-            } catch (e: Exception) {
+-                println("Failed to set tunnel state: ${e.message}")
+-                println("Exception stack trace:")
+-                e.printStackTrace()
+-                println("Backend state: ${backend != null}")
+-                println("Tunnel state: ${tunnel != null}")
+-                println("Config state: ${this.config != null}")
+-                throw Exception("Failed to set tunnel state: ${e.message}")
+-            }
+         } catch (e: Exception) {
+-            println("Connection failed with error: ${e.message}")
+-            println("Exception stack trace:")
+             e.printStackTrace()
++            // Append internal message for better JS logging
+             promise.reject("CONNECT_ERROR", "Failed to connect: ${e.message}")
+         }
+     }
+@@ -227,7 +200,6 @@ class WireGuardVpnModule(reactContext: ReactApplicationContext) : ReactContextBa
+             } else {
+                 Tunnel.State.DOWN
+             }
+-
+             val status = Arguments.createMap().apply {
+                 putBoolean("isConnected", state == Tunnel.State.UP)
+                 putString("tunnelState", state?.name ?: "UNKNOWN")
+diff --git a/node_modules/react-native-wireguard-vpn/src/index.ts b/node_modules/react-native-wireguard-vpn/src/index.ts
+index 08712ec..4cdcfd3 100644
+--- a/node_modules/react-native-wireguard-vpn/src/index.ts
++++ b/node_modules/react-native-wireguard-vpn/src/index.ts
+@@ -22,6 +22,7 @@ export interface WireGuardConfig {
+   publicKey: string;
+   serverAddress: string;
+   serverPort: number;
++  addresses?: string[];
+   allowedIPs: string[];
+   dns?: string[];
+   mtu?: number;
