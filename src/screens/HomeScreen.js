@@ -1,19 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, SafeAreaView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, ScrollView, SafeAreaView, Platform, Dimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as SecureStore from 'expo-secure-store';
-import { Shield, ShieldOff, Globe, Signal, LogOut, ChevronDown, Activity, MapPin } from 'lucide-react-native';
+import { Shield, ShieldOff, Globe, Signal, LogOut, ChevronDown, Activity, MapPin, Search } from 'lucide-react-native';
 import WireGuardVpnModule from 'react-native-wireguard-vpn';
+
+const { width } = Dimensions.get('window');
 
 export default function HomeScreen({ navigation }) {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [selectedServer, setSelectedServer] = useState({ name: 'EU-West (Frankfurt)', ip: '192.168.1.1', load: '45%' });
+  const [selectedServer, setSelectedServer] = useState({ name: 'EU-West (Frankfurt)', location: 'Germany', ip: '192.168.1.1', load: '45%' });
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [codeKey, setCodeKey] = useState('');
   const [serversList, setServersList] = useState([
     { id: 1, name: 'EU-West (Frankfurt)', location: 'Germany', load: '45%', status: 'active' },
     { id: 2, name: 'US-East (New York)', location: 'USA', load: '82%', status: 'active' },
     { id: 3, name: 'AP-South (Mumbai)', location: 'India', load: '12%', status: 'active' },
+    { id: 4, name: 'EU-North (Stockholm)', location: 'Sweden', load: '28%', status: 'active' },
   ]);
 
   useEffect(() => {
@@ -27,7 +31,6 @@ export default function HomeScreen({ navigation }) {
            const customConfigs = JSON.parse(savedCustomConfigsStr);
            if (customConfigs.length > 0) {
               setServersList(prev => [...customConfigs, ...prev]);
-              // Auto-select the first custom config if available
               setSelectedServer(customConfigs[0]);
            }
         }
@@ -60,8 +63,6 @@ export default function HomeScreen({ navigation }) {
       setIsConnecting(true);
       
       try {
-        // If the server has a pre-parsed custom config, use it directly.
-        // Otherwise fallback to the placeholder dummy config logic.
         const config = selectedServer.config || {
           privateKey: 'YOUR_PRIVATE_KEY',
           publicKey: 'SERVER_PUBLIC_KEY',
@@ -91,104 +92,130 @@ export default function HomeScreen({ navigation }) {
   const handleLogout = async () => {
     await SecureStore.deleteItemAsync('vpn_code_key');
     await SecureStore.deleteItemAsync('vpn_configs');
-    // Real App: Make API call to backend /api/client/revoke if logout means revocation
-    // Or just clear local data to switch keys
     navigation.replace('Auth');
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Dynamic Background Glow */}
+      <View style={[styles.bgGlow, isConnected && styles.bgGlowActive]} />
+
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Nexus<Text style={{color: '#6366f1'}}>VPN</Text></Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerTitle}>Nexus<Text style={{color: isConnected ? '#10b981' : '#3b82f6'}}>VPN</Text></Text>
           <View style={styles.statusBadge}>
-            <View style={[styles.statusDot, { backgroundColor: isConnected ? '#10b981' : '#ef4444' }]} />
-            <Text style={styles.statusText}>{isConnected ? 'SECURE' : 'UNPROTECTED'}</Text>
+            <View style={[styles.statusDot, { backgroundColor: isConnected ? '#10b981' : '#a1a1aa' }, isConnecting && {backgroundColor: '#f59e0b'}]} />
+            <Text style={[styles.statusText, isConnected && {color: '#10b981'}]}>
+              {isConnecting ? 'CONNECTING...' : isConnected ? 'PROTECTED' : 'UNPROTECTED'}
+            </Text>
           </View>
         </View>
         
         <TouchableOpacity style={styles.iconButton} onPress={handleLogout}>
-          <LogOut color="#a1a1aa" size={20} />
+          <LogOut color="#fff" size={20} />
         </TouchableOpacity>
       </View>
 
       <View style={styles.mainContent}>
-        {/* The Giant Connect Button */}
-        <View style={styles.connectWrapper}>
-          <View style={[styles.glowRing, isConnected && styles.glowRingActive, isConnecting && styles.glowRingConnecting]} />
+        
+        {/* Futuristic Connect Node */}
+        <View style={styles.nodeWrapper}>
+          {/* Animated pulsing rings could go here. For now, static glow rings */}
+          <View style={[styles.pulseRing, isConnected && styles.pulseRingActive]} />
+          <View style={[styles.pulseRingInner, isConnected && styles.pulseRingInnerActive]} />
           
           <TouchableOpacity 
             style={[
-              styles.connectButton, 
-              isConnected && styles.connectButtonActive,
-              isConnecting && styles.connectButtonConnecting
+              styles.connectNode, 
+              isConnected && styles.connectNodeActive,
+              isConnecting && styles.connectNodeConnecting
             ]} 
             onPress={handleConnectToggle}
-            activeOpacity={0.8}
+            activeOpacity={0.9}
             disabled={isConnecting}
           >
             {isConnected ? (
-              <Shield color="#FFFFFF" size={48} />
+              <Shield color="#fff" size={48} strokeWidth={1.5} />
             ) : (
-              <ShieldOff color="#FFFFFF" size={48} />
+              <ShieldOff color="#a1a1aa" size={48} strokeWidth={1.5} />
             )}
-            <Text style={styles.connectText}>
-              {isConnecting ? 'CONNECTING...' : isConnected ? 'CONNECTED' : 'TAP TO CONNECT'}
-            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Selected Location Card */}
-        <TouchableOpacity 
-          style={styles.locationCard} 
-          onPress={() => !isConnected && setShowLocationModal(true)}
-          disabled={isConnected || isConnecting}
-        >
-          <View style={styles.locationRow}>
-            <View style={styles.locationIcon}>
-              <Globe color="#a855f7" size={20} />
+        <View style={styles.glassPanel}>
+          {/* Location Selector */}
+          <TouchableOpacity 
+            style={styles.locationSelector} 
+            onPress={() => !isConnected && setShowLocationModal(true)}
+            disabled={isConnected || isConnecting}
+          >
+            <View style={styles.locationLeft}>
+              <View style={[styles.locationIconWrapper, isConnected && {backgroundColor: 'rgba(16, 185, 129, 0.15)'}]}>
+                <Globe color={isConnected ? '#10b981' : '#3b82f6'} size={24} />
+              </View>
+              <View>
+                <Text style={styles.locationLabel}>Current Server</Text>
+                <Text style={styles.locationName}>{selectedServer.name}</Text>
+              </View>
             </View>
-            <View style={styles.locationInfo}>
-              <Text style={styles.locationLabel}>Selected Region</Text>
-              <Text style={styles.locationName}>{selectedServer.name}</Text>
-            </View>
-            <ChevronDown color={isConnected ? '#333' : '#a1a1aa'} size={24} />
-          </View>
-        </TouchableOpacity>
+            <ChevronDown color={isConnected ? "rgba(255,255,255,0.2)" : "#fff"} size={20} />
+          </TouchableOpacity>
 
-        {/* Stats Grid */}
-        <View style={styles.statsGrid}>
-          <View style={styles.statBox}>
-             <Activity color="#a1a1aa" size={16} style={{marginBottom: 8}} />
-             <Text style={styles.statValue}>{isConnected ? '12.4' : '0.0'}</Text>
-             <Text style={styles.statLabel}>MB/s Download</Text>
-          </View>
-          <View style={styles.statBox}>
-             <Signal color="#a1a1aa" size={16} style={{marginBottom: 8}} />
-             <Text style={styles.statValue}>{isConnected ? '24' : '--'}</Text>
-             <Text style={styles.statLabel}>Ping (ms)</Text>
+          <View style={styles.divider} />
+
+          {/* Activity Stats */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <View style={styles.statHeader}>
+                <Activity color="#a1a1aa" size={16} />
+                <Text style={styles.statLabel}>Down</Text>
+              </View>
+              <Text style={styles.statValue}>{isConnected ? '34.2' : '0.0'} <Text style={styles.statUnit}>MB/s</Text></Text>
+            </View>
+
+            <View style={styles.statDivider} />
+
+            <View style={styles.statItem}>
+              <View style={styles.statHeader}>
+                <Activity color="#a1a1aa" size={16} />
+                <Text style={styles.statLabel}>Up</Text>
+              </View>
+              <Text style={styles.statValue}>{isConnected ? '12.8' : '0.0'} <Text style={styles.statUnit}>MB/s</Text></Text>
+            </View>
+
+            <View style={styles.statDivider} />
+
+            <View style={styles.statItem}>
+              <View style={styles.statHeader}>
+                <Signal color="#a1a1aa" size={16} />
+                <Text style={styles.statLabel}>Ping</Text>
+              </View>
+              <Text style={styles.statValue}>{isConnected ? '18' : '--'} <Text style={styles.statUnit}>ms</Text></Text>
+            </View>
           </View>
         </View>
       </View>
 
-      {/* Subscription Info Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerKey}>Key: {codeKey || '••••-••••-••••'}</Text>
-        <Text style={styles.footerExpire}>Expires in 29 days</Text>
+        <View style={styles.keyBadge}>
+          <Text style={styles.keyLabel}>Key ID:</Text>
+          <Text style={styles.keyValue}>{codeKey ? `${codeKey.substring(0, 8)}...` : 'DEMO-MODE'}</Text>
+        </View>
       </View>
 
-      {/* Location Selector Modal */}
+      {/* Modern Bottom Sheet Modal */}
       <Modal visible={showLocationModal} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Region</Text>
-              <TouchableOpacity onPress={() => setShowLocationModal(false)}>
-                <Text style={styles.modalClose}>Done</Text>
-              </TouchableOpacity>
-            </View>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Select Server</Text>
             
-            <ScrollView style={styles.serverList}>
+            <View style={styles.searchBar}>
+              <Search color="#a1a1aa" size={20} />
+              <Text style={styles.searchPlaceholder}>Search regions...</Text>
+            </View>
+
+            <ScrollView style={styles.serverList} showsVerticalScrollIndicator={false}>
               {serversList.map(server => (
                 <TouchableOpacity 
                   key={server.id} 
@@ -198,17 +225,33 @@ export default function HomeScreen({ navigation }) {
                     setShowLocationModal(false);
                   }}
                 >
-                  <View style={styles.serverItemRow}>
-                    <MapPin color={selectedServer.name === server.name ? '#6366f1' : '#a1a1aa'} size={20} />
-                    <View style={styles.serverItemInfo}>
-                      <Text style={styles.serverName}>{server.name} {server.isCustom && '(Custom)'}</Text>
-                      <Text style={styles.serverLocation}>{server.location}</Text>
+                  <View style={styles.serverItemLeft}>
+                    <View style={[styles.serverIcon, selectedServer.name === server.name && styles.serverIconActive]}>
+                       <MapPin color={selectedServer.name === server.name ? '#10b981' : '#a1a1aa'} size={20} />
+                    </View>
+                    <View>
+                      <Text style={[styles.serverNameText, selectedServer.name === server.name && {color: '#fff'}]}>
+                        {server.name} {server.isCustom && '(Custom)'}
+                      </Text>
+                      <Text style={styles.serverLocationText}>{server.location}</Text>
                     </View>
                   </View>
-                  <View style={[styles.loadIndicator, { backgroundColor: parseInt(server.load) > 80 ? '#ef4444' : '#10b981' }]} />
+                  
+                  <View style={styles.serverItemRight}>
+                    <View style={styles.loadPill}>
+                       <Text style={styles.loadText}>{server.load}</Text>
+                    </View>
+                    <View style={[styles.radioCircle, selectedServer.name === server.name && styles.radioCircleActive]}>
+                       {selectedServer.name === server.name && <View style={styles.radioDot} />}
+                    </View>
+                  </View>
                 </TouchableOpacity>
               ))}
             </ScrollView>
+            
+            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setShowLocationModal(false)}>
+               <Text style={styles.modalCloseText}>Cancel</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -220,18 +263,35 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#050505',
+    backgroundColor: '#05050A',
+  },
+  bgGlow: {
+    position: 'absolute',
+    top: -100,
+    width: width * 1.5,
+    height: width * 1.5,
+    borderRadius: width,
+    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+    alignSelf: 'center',
+    transform: [{ scaleY: 0.5 }],
+  },
+  bgGlowActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: Platform.OS === 'android' ? 40 : 16,
     paddingBottom: 16,
+    zIndex: 10,
+  },
+  headerLeft: {
+    flexDirection: 'column',
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '800',
     color: '#fff',
     letterSpacing: -0.5,
@@ -239,189 +299,249 @@ const styles = StyleSheet.create({
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
     marginTop: 4,
-    alignSelf: 'flex-start',
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
     marginRight: 6,
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
   },
   statusText: {
     color: '#a1a1aa',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1,
   },
   iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   mainContent: {
     flex: 1,
     padding: 24,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 40,
   },
-  connectWrapper: {
+  nodeWrapper: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    height: 280,
-    marginBottom: 40,
+    marginTop: 40,
   },
-  glowRing: {
+  pulseRing: {
     position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'rgba(255,255,255,0.01)',
   },
-  glowRingActive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-  },
-  glowRingConnecting: {
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-  },
-  connectButton: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderWidth: 2,
-    borderColor: 'rgba(99, 102, 241, 0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#6366f1',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  connectButtonActive: {
-    backgroundColor: '#10b981',
-    borderColor: '#059669',
+  pulseRingActive: {
+    borderColor: 'rgba(16, 185, 129, 0.2)',
+    backgroundColor: 'rgba(16, 185, 129, 0.02)',
     shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 40,
   },
-  connectButtonConnecting: {
-    borderColor: '#f59e0b',
-    shadowColor: '#f59e0b',
-  },
-  connectText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginTop: 12,
-  },
-  locationCard: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
+  pulseRingInner: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
+    backgroundColor: 'rgba(255,255,255,0.02)',
   },
-  locationRow: {
+  pulseRingInnerActive: {
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+    backgroundColor: 'rgba(16, 185, 129, 0.05)',
+  },
+  connectNode: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#12121A',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.8,
+    shadowRadius: 30,
+  },
+  connectNodeActive: {
+    backgroundColor: '#10b981',
+    borderColor: '#34d399',
+    shadowColor: '#10b981',
+    shadowOpacity: 0.6,
+    shadowRadius: 40,
+  },
+  connectNodeConnecting: {
+    backgroundColor: '#0F0F16',
+    borderColor: '#f59e0b',
+    shadowColor: '#f59e0b',
+    shadowOpacity: 0.4,
+  },
+  glassPanel: {
+    backgroundColor: 'rgba(20, 20, 28, 0.6)',
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  locationSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    padding: 24,
   },
-  locationIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(168, 85, 247, 0.1)',
+  locationLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  locationIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  locationInfo: {
-    flex: 1,
-    marginLeft: 16,
+    marginRight: 16,
   },
   locationLabel: {
     color: '#a1a1aa',
     fontSize: 12,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
   },
   locationName: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    marginTop: 2,
   },
-  statsGrid: {
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginHorizontal: 24,
+  },
+  statsContainer: {
     flexDirection: 'row',
-    gap: 16,
+    padding: 24,
   },
-  statBox: {
+  statItem: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.02)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 16,
-    padding: 16,
   },
-  statValue: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '700',
+  statHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   statLabel: {
     color: '#a1a1aa',
+    fontSize: 13,
+    fontWeight: '500',
+    marginLeft: 6,
+  },
+  statValue: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  statUnit: {
     fontSize: 12,
-    marginTop: 4,
+    color: '#a1a1aa',
+    fontWeight: '500',
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginHorizontal: 16,
   },
   footer: {
-    padding: 24,
     alignItems: 'center',
+    paddingBottom: Platform.OS === 'ios' ? 0 : 24,
   },
-  footerKey: {
+  keyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  keyLabel: {
     color: '#a1a1aa',
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    fontSize: 13,
-  },
-  footerExpire: {
-    color: '#10b981',
     fontSize: 12,
-    marginTop: 4,
+    marginRight: 6,
+  },
+  keyValue: {
+    color: '#fff',
+    fontSize: 12,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
+    backgroundColor: 'rgba(0,0,0,0.85)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#18181b',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    minHeight: '60%',
+    backgroundColor: '#12121A',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    height: '75%',
     padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderBottomWidth: 0,
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignSelf: 'center',
     marginBottom: 24,
   },
   modalTitle: {
     color: '#fff',
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
+    marginBottom: 24,
   },
-  modalClose: {
-    color: '#6366f1',
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  searchPlaceholder: {
+    color: '#a1a1aa',
+    marginLeft: 12,
     fontSize: 16,
-    fontWeight: '600',
   },
   serverList: {
     flex: 1,
@@ -435,32 +555,78 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255,255,255,0.05)',
   },
   serverItemActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    marginHorizontal: -12,
-    borderBottomWidth: 0,
+    borderBottomColor: 'transparent',
   },
-  serverItemRow: {
+  serverItemLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  serverItemInfo: {
-    marginLeft: 16,
+  serverIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
   },
-  serverName: {
+  serverIconActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+  },
+  serverNameText: {
+    color: '#d4d4d8',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  serverLocationText: {
+    color: '#a1a1aa',
+    fontSize: 13,
+  },
+  serverItemRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  loadPill: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginRight: 16,
+  },
+  loadText: {
+    color: '#a1a1aa',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  radioCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioCircleActive: {
+    borderColor: '#10b981',
+  },
+  radioDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#10b981',
+  },
+  modalCloseBtn: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    padding: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  modalCloseText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-  },
-  serverLocation: {
-    color: '#a1a1aa',
-    fontSize: 13,
-    marginTop: 2,
-  },
-  loadIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
   }
 });
