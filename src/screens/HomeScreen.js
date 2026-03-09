@@ -206,8 +206,8 @@ export default function HomeScreen({ navigation }) {
           >
             <View style={styles.locationLeft}>
               <View style={[styles.locationIconWrapper, isConnected && {backgroundColor: 'rgba(16, 185, 129, 0.15)'}]}>
-                {getFlag(selectedServer?.location) ? (
-                   <Text style={{fontSize: 24, lineHeight: 28}}>{getFlag(selectedServer?.location)}</Text>
+                {selectedServer?.location && getFlag(selectedServer.location) ? (
+                   <Text style={{fontSize: 24, lineHeight: 28}}>{getFlag(selectedServer.location)}</Text>
                 ) : (
                    <Globe color={isConnected ? '#10b981' : '#3b82f6'} size={24} />
                 )}
@@ -291,7 +291,7 @@ export default function HomeScreen({ navigation }) {
                   >
                     <View style={styles.serverItemLeft}>
                       <View style={[styles.serverIcon, selectedServer?.name === server.name && styles.serverIconActive]}>
-                         {getFlag(server.location) ? (
+                         {server?.location && getFlag(server.location) ? (
                             <Text style={{fontSize: 24, lineHeight: 28}}>{getFlag(server.location)}</Text>
                          ) : (
                             <MapPin color={selectedServer?.name === server.name ? '#10b981' : '#a1a1aa'} size={20} />

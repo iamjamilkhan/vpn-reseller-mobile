@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
 import * as SecureStore from 'expo-secure-store';
 import { ShieldAlert, QrCode, X } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Application from 'expo-application';
 
 export default function AuthScreen({ navigation }) {
   const [codeKey, setCodeKey] = useState('');
@@ -34,25 +35,35 @@ export default function AuthScreen({ navigation }) {
     setError('');
 
     try {
-      // Get or create a consistent Device ID for binding
-      let deviceId = await SecureStore.getItemAsync('device_id');
-      if (!deviceId) {
-        deviceId = `dev_${Math.random().toString(36).substring(2, 12)}`;
-        await SecureStore.setItemAsync('device_id', deviceId);
+      // Get or create a permanent Hardware UUID for binding
+      let hardwareId = await SecureStore.getItemAsync('hardware_device_id');
+      if (!hardwareId) {
+        if (Platform.OS === 'ios') {
+          // iOS physical device UUID
+          hardwareId = await Application.getIosIdForVendorAsync();
+        } else if (Platform.OS === 'android') {
+          // Android 64-bit hardware ID
+          hardwareId = Application.getAndroidId();
+        }
+
+        // Web fallback or failure fallback
+        if (!hardwareId) {
+           hardwareId = `dev_${Math.random().toString(36).substring(2, 12)}`;
+        }
+        await SecureStore.setItemAsync('hardware_device_id', hardwareId);
       }
 
       // 1. Call your Next.js Backend API
-      // Updating to use the production Vercel dashboard URL instead of local IP
       const DASHBOARD_API = 'https://nexus-vpn-dashboard.vercel.app/api/client/activate';
 
-      console.log(`Activating key ${codeKey} for device ${deviceId}...`);
+      console.log(`Activating key ${codeKey} for physical hardware ID: ${hardwareId}...`);
 
       const response = await fetch(DASHBOARD_API, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ code_key: codeKey, device_id: deviceId }),
+        body: JSON.stringify({ code_key: codeKey, device_id: hardwareId }),
       });
 
       const data = await response.json();
