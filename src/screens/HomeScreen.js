@@ -13,12 +13,7 @@ export default function HomeScreen({ navigation }) {
   const [selectedServer, setSelectedServer] = useState({ name: 'EU-West (Frankfurt)', location: 'Germany', ip: '192.168.1.1', load: '45%' });
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [codeKey, setCodeKey] = useState('');
-  const [serversList, setServersList] = useState([
-    { id: 1, name: 'EU-West (Frankfurt)', location: 'Germany', load: '45%', status: 'active' },
-    { id: 2, name: 'US-East (New York)', location: 'USA', load: '82%', status: 'active' },
-    { id: 3, name: 'AP-South (Mumbai)', location: 'India', load: '12%', status: 'active' },
-    { id: 4, name: 'EU-North (Stockholm)', location: 'Sweden', load: '28%', status: 'active' },
-  ]);
+  const [serversList, setServersList] = useState([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -26,16 +21,26 @@ export default function HomeScreen({ navigation }) {
       if (savedKey) setCodeKey(savedKey);
 
       try {
+        let allServers = [];
+        
+        const vpnConfigsStr = await SecureStore.getItemAsync('vpn_configs');
+        if (vpnConfigsStr) {
+          const vpnConfigs = JSON.parse(vpnConfigsStr);
+          allServers = [...allServers, ...vpnConfigs];
+        }
+
         const savedCustomConfigsStr = await SecureStore.getItemAsync('generic_wg_configs');
         if (savedCustomConfigsStr) {
            const customConfigs = JSON.parse(savedCustomConfigsStr);
-           if (customConfigs.length > 0) {
-              setServersList(prev => [...customConfigs, ...prev]);
-              setSelectedServer(customConfigs[0]);
-           }
+           allServers = [...allServers, ...customConfigs];
+        }
+
+        if (allServers.length > 0) {
+          setServersList(allServers);
+          setSelectedServer(allServers[0]);
         }
       } catch (err) {
-        console.log('Failed to load custom configs', err);
+        console.log('Failed to load servers', err);
       }
 
       try {
@@ -63,7 +68,34 @@ export default function HomeScreen({ navigation }) {
       setIsConnecting(true);
       
       try {
-        const config = selectedServer.config || {
+        let wgObj = selectedServer.config;
+        
+        // If we have a raw Wireguard config string (from DB/Dashboard), parse it
+        if (selectedServer.configStr) {
+          wgObj = {
+            privateKey: '', publicKey: '', serverAddress: '', serverPort: 51820,
+            addresses: ['10.0.0.2/32'], allowedIPs: ['0.0.0.0/0'], dns: ['1.1.1.1'], mtu: 1420
+          };
+          
+          selectedServer.configStr.split('\n').forEach(line => {
+            const [key, ...valueParts] = line.split('=');
+            if (!key || valueParts.length === 0) return;
+            const val = valueParts.join('=').trim();
+            const k = key.trim().toLowerCase();
+            if (k === 'privatekey') wgObj.privateKey = val;
+            if (k === 'publickey') wgObj.publicKey = val;
+            if (k === 'endpoint') {
+              const parts = val.split(':');
+              wgObj.serverAddress = parts[0];
+              if (parts[1]) wgObj.serverPort = parseInt(parts[1], 10);
+            }
+            if (k === 'allowedips') wgObj.allowedIPs = val.split(',').map(s => s.trim());
+            if (k === 'address') wgObj.addresses = val.split(',').map(s => s.trim());
+            if (k === 'dns') wgObj.dns = val.split(',').map(s => s.trim());
+          });
+        }
+        
+        const finalConfig = wgObj || {
           privateKey: 'YOUR_PRIVATE_KEY',
           publicKey: 'SERVER_PUBLIC_KEY',
           serverAddress: selectedServer.ip || '192.168.1.1',
@@ -73,7 +105,7 @@ export default function HomeScreen({ navigation }) {
           mtu: 1420
         };
 
-        await WireGuardVpnModule.connect(config);
+        await WireGuardVpnModule.connect(finalConfig);
         setIsConnected(true);
       } catch (err) {
         console.error('Connection failed:', err);

@@ -42,20 +42,61 @@ export default function AuthScreen({ navigation }) {
       }
 
       // 1. Call your Next.js Backend API
-      // Note: In development, using local IP instead of localhost for physical device testing
-      // e.g. http://192.168.1.X:3001/api/client/activate
-      const DASHBOARD_API = 'http://192.168.1.100:3001/api/client/activate';
+      // Since Expo Go is running on 192.168.70.182, we assume the Next.js backend is running on the same machine on port 3000
+      const DASHBOARD_API = 'http://192.168.70.182:3000/api/client/activate';
 
       console.log(`Activating key ${codeKey} for device ${deviceId}...`);
 
-      // Simulate API call for now to test UI flow
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const response = await fetch(DASHBOARD_API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code_key: codeKey, device_id: deviceId }),
+      });
 
-      // If success, store it and navigate to Home Screen
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to activate key');
+      }
+
+      // If success, store the key
       await SecureStore.setItemAsync('vpn_code_key', codeKey);
 
-      // We would also store the returned configs here using SecureStore
-      // await SecureStore.setItemAsync('vpn_configs', JSON.stringify(data.configs));
+      // Normalize and store the returned configs
+      let normalizedConfigs = [];
+      if (data.configs && data.configs.length > 0) {
+        normalizedConfigs = data.configs.map((c, index) => {
+          // If it's a newly generated config
+          if (c.config) {
+            return {
+              id: `server_${index}`,
+              name: c.serverName,
+              location: c.location,
+              load: '20%',
+              status: 'active',
+              configStr: c.config
+            };
+          } 
+          // If it's returning existing DB records
+          else if (c.servers) {
+            // Reconstruct the raw WireGuard config from DB parts
+            const wgConfig = `[Interface]\nPrivateKey = ${c.wg_private_key}\nAddress = ${c.internal_ip}\nDNS = 1.1.1.1\n\n[Peer]\nPublicKey = ${c.wg_public_key}\nEndpoint = ${c.servers.ip_address}:51820\nAllowedIPs = 0.0.0.0/0, ::/0\nPersistentKeepalive = 25`;
+            return {
+              id: `server_${c.server_id}`,
+              name: c.servers.name,
+              location: c.servers.location,
+              load: '20%',
+              status: 'active',
+              configStr: wgConfig
+            };
+          }
+          return null;
+        }).filter(Boolean);
+        
+        await SecureStore.setItemAsync('vpn_configs', JSON.stringify(normalizedConfigs));
+      }
 
       navigation.replace('Home');
     } catch (err) {
