@@ -42,8 +42,8 @@ export default function AuthScreen({ navigation }) {
       }
 
       // 1. Call your Next.js Backend API
-      // Since Expo Go is running on 192.168.70.182, we assume the Next.js backend is running on the same machine on port 3000
-      const DASHBOARD_API = 'http://192.168.70.182:3000/api/client/activate';
+      // Updating to use the production Vercel dashboard URL instead of local IP
+      const DASHBOARD_API = 'https://nexus-vpn-dashboard.vercel.app/api/client/activate';
 
       console.log(`Activating key ${codeKey} for device ${deviceId}...`);
 
