@@ -7,6 +7,29 @@ import WireGuardVpnModule from 'react-native-wireguard-vpn';
 
 const { width } = Dimensions.get('window');
 
+const COUNTRIES = [
+  { code: 'US', name: 'United States', flag: '🇺🇸' },
+  { code: 'GB', name: 'United Kingdom', flag: '🇬🇧' },
+  { code: 'IN', name: 'India', flag: '🇮🇳' },
+  { code: 'DE', name: 'Germany', flag: '🇩🇪' },
+  { code: 'FR', name: 'France', flag: '🇫🇷' },
+  { code: 'NL', name: 'Netherlands', flag: '🇳🇱' },
+  { code: 'SG', name: 'Singapore', flag: '🇸🇬' },
+  { code: 'JP', name: 'Japan', flag: '🇯🇵' },
+  { code: 'AU', name: 'Australia', flag: '🇦🇺' },
+  { code: 'CA', name: 'Canada', flag: '🇨🇦' },
+];
+
+const getFlag = (code) => {
+  const country = COUNTRIES.find(c => c.code === code);
+  return country ? country.flag : null;
+};
+
+const getLocationName = (code) => {
+  const country = COUNTRIES.find(c => c.code === code);
+  return country ? country.name : (code || 'Global');
+};
+
 export default function HomeScreen({ navigation }) {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -183,7 +206,11 @@ export default function HomeScreen({ navigation }) {
           >
             <View style={styles.locationLeft}>
               <View style={[styles.locationIconWrapper, isConnected && {backgroundColor: 'rgba(16, 185, 129, 0.15)'}]}>
-                <Globe color={isConnected ? '#10b981' : '#3b82f6'} size={24} />
+                {getFlag(selectedServer?.location) ? (
+                   <Text style={{fontSize: 24, lineHeight: 28}}>{getFlag(selectedServer?.location)}</Text>
+                ) : (
+                   <Globe color={isConnected ? '#10b981' : '#3b82f6'} size={24} />
+                )}
               </View>
               <View>
                 <Text style={styles.locationLabel}>Current Server</Text>
@@ -264,13 +291,17 @@ export default function HomeScreen({ navigation }) {
                   >
                     <View style={styles.serverItemLeft}>
                       <View style={[styles.serverIcon, selectedServer?.name === server.name && styles.serverIconActive]}>
-                         <MapPin color={selectedServer?.name === server.name ? '#10b981' : '#a1a1aa'} size={20} />
+                         {getFlag(server.location) ? (
+                            <Text style={{fontSize: 24, lineHeight: 28}}>{getFlag(server.location)}</Text>
+                         ) : (
+                            <MapPin color={selectedServer?.name === server.name ? '#10b981' : '#a1a1aa'} size={20} />
+                         )}
                       </View>
                       <View>
                         <Text style={[styles.serverNameText, selectedServer?.name === server.name && {color: '#fff'}]}>
                           {server.name} {server.isCustom && '(Custom)'}
                         </Text>
-                        <Text style={styles.serverLocationText}>{server.location || 'Global'}</Text>
+                        <Text style={styles.serverLocationText}>{getLocationName(server.location)}</Text>
                       </View>
                     </View>
                     
