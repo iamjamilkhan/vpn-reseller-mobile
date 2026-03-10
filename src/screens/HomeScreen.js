@@ -135,7 +135,7 @@ export default function HomeScreen({ navigation }) {
           name: 'NexusVPN',
           privateKey: wgObj?.privateKey || '',
           publicKey: wgObj?.publicKey || '',
-          presharedKey: wgObj?.presharedKey || '',
+          presharedKey: wgObj?.presharedKey || undefined,
           serverAddress: wgObj?.serverAddress || selectedServer.ip || '',
           serverPort: wgObj?.serverPort || 51820,
           addresses: wgObj?.addresses || ['10.0.0.2/32'],
