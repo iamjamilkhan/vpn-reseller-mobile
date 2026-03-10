@@ -12,7 +12,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nexusvpn.vpnresellermobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +25,11 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "package": "com.nexusvpn.vpnresellermobile"
+      "package": "com.nexusvpn.vpnresellermobile",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -38,8 +46,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "b5081db0-7262-4f7d-8de9-6a1626181839"
+        "projectId": "f53b5174-a0d5-4273-976c-9ef1e2ee6c40"
       }
-    }
+    },
+    "owner": "nexusvpn"
   }
 }

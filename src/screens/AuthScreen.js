@@ -87,20 +87,20 @@ export default function AuthScreen({ navigation }) {
               id: `server_${index}`,
               name: c.serverName,
               location: c.location,
-              load: '20%',
+              load: typeof c.load === 'number' ? c.load : 0,
               status: 'active',
               configStr: c.config
             };
           } 
           // If it's returning existing DB records
           else if (c.servers) {
-            // Reconstruct the raw WireGuard config from DB parts
-            const wgConfig = `[Interface]\nPrivateKey = ${c.wg_private_key}\nAddress = ${c.internal_ip}\nDNS = 1.1.1.1\n\n[Peer]\nPublicKey = ${c.wg_public_key}\nEndpoint = ${c.servers.ip_address}:51820\nAllowedIPs = 0.0.0.0/0, ::/0\nPersistentKeepalive = 25`;
+            // Use raw_config from DB if available (has correct server pubkey and port)
+            const wgConfig = c.raw_config || `[Interface]\nPrivateKey = ${c.wg_private_key}\nAddress = ${c.internal_ip}/32\nDNS = 1.1.1.1, 8.8.8.8\nMTU = 1280\n\n[Peer]\nPublicKey = ${c.wg_public_key}\nEndpoint = ${c.servers.ip_address}:51820\nAllowedIPs = 0.0.0.0/0, ::/0\nPersistentKeepalive = 25`;
             return {
               id: `server_${c.server_id}`,
               name: c.servers.name,
               location: c.servers.location,
-              load: '20%',
+              load: typeof c.load === 'number' ? c.load : 0,
               status: 'active',
               configStr: wgConfig
             };

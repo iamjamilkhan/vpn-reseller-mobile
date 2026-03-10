@@ -30,6 +30,16 @@ const getLocationName = (code) => {
   return country ? country.name : (code || 'Global');
 };
 
+const getLoadConfig = (loadVal) => {
+  let load = parseInt(loadVal, 10);
+  if (isNaN(load)) load = 0;
+  
+  if (load <= 30) return { text: 'Low', color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.15)' };
+  if (load <= 70) return { text: 'Med', color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.15)' };
+  if (load <= 90) return { text: 'High', color: '#f97316', bgColor: 'rgba(249, 115, 22, 0.15)' };
+  return { text: 'Full', color: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.15)' };
+};
+
 export default function HomeScreen({ navigation }) {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -107,6 +117,7 @@ export default function HomeScreen({ navigation }) {
             const k = key.trim().toLowerCase();
             if (k === 'privatekey') wgObj.privateKey = val;
             if (k === 'publickey') wgObj.publicKey = val;
+            if (k === 'presharedkey') wgObj.presharedKey = val;
             if (k === 'endpoint') {
               const parts = val.split(':');
               wgObj.serverAddress = parts[0];
@@ -115,18 +126,28 @@ export default function HomeScreen({ navigation }) {
             if (k === 'allowedips') wgObj.allowedIPs = val.split(',').map(s => s.trim());
             if (k === 'address') wgObj.addresses = val.split(',').map(s => s.trim());
             if (k === 'dns') wgObj.dns = val.split(',').map(s => s.trim());
+            if (k === 'mtu') wgObj.mtu = parseInt(val, 10);
+            if (k === 'persistentkeepalive') wgObj.persistentKeepalive = parseInt(val, 10);
           });
         }
         
-        const finalConfig = wgObj || {
-          privateKey: 'YOUR_PRIVATE_KEY',
-          publicKey: 'SERVER_PUBLIC_KEY',
-          serverAddress: selectedServer.ip || '192.168.1.1',
-          serverPort: 51820,
-          allowedIPs: ['0.0.0.0/0'],
-          dns: ['1.1.1.1'],
-          mtu: 1420
+        const finalConfig = {
+          name: 'NexusVPN',
+          privateKey: wgObj?.privateKey || '',
+          publicKey: wgObj?.publicKey || '',
+          presharedKey: wgObj?.presharedKey || '',
+          serverAddress: wgObj?.serverAddress || selectedServer.ip || '',
+          serverPort: wgObj?.serverPort || 51820,
+          addresses: wgObj?.addresses || ['10.0.0.2/32'],
+          allowedIPs: wgObj?.allowedIPs || ['0.0.0.0/0'],
+          dns: wgObj?.dns || ['1.1.1.1', '8.8.8.8'],
+          mtu: wgObj?.mtu || 1280,
+          persistentKeepalive: wgObj?.persistentKeepalive || 25
         };
+
+        if (!finalConfig.privateKey || (!finalConfig.publicKey && !finalConfig.presharedKey)) {
+          throw new Error('Incomplete VPN configuration. Please try re-activating your key.');
+        }
 
         await WireGuardVpnModule.connect(finalConfig);
         setIsConnected(true);
@@ -306,9 +327,14 @@ export default function HomeScreen({ navigation }) {
                     </View>
                     
                     <View style={styles.serverItemRight}>
-                      <View style={styles.loadPill}>
-                         <Text style={styles.loadText}>{server.load || 'Low'}</Text>
-                      </View>
+                      {(() => {
+                        const loadConf = getLoadConfig(server.load);
+                        return (
+                          <View style={[styles.loadPill, { backgroundColor: loadConf.bgColor }]}>
+                            <Text style={[styles.loadText, { color: loadConf.color }]}>{loadConf.text}</Text>
+                          </View>
+                        );
+                      })()}
                       <View style={[styles.radioCircle, selectedServer?.name === server.name && styles.radioCircleActive]}>
                          {selectedServer?.name === server.name && <View style={styles.radioDot} />}
                       </View>
